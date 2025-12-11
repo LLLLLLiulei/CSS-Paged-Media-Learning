@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <title>CSS Paged Media 示例 - 脚注与侧边栏</title>
+    <style>
+        /* ==================== 基础样式 ==================== */
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "SimSun", "Times New Roman", serif;
+            font-size: 12pt;
+            line-height: 1.8;
+            margin: 0;
+            padding: 0;
+        }
+
+        h1 {
+            font-size: 22pt;
+            color: #1976d2;
+            border-bottom: 2pt solid #1976d2;
+            padding-bottom: 10pt;
+            margin-bottom: 20pt;
+        }
+
+        h2 {
+            font-size: 16pt;
+            color: #333;
+            border-left: 4pt solid #1976d2;
+            padding-left: 10pt;
+            margin-top: 25pt;
+            margin-bottom: 15pt;
+        }
+
+        p {
+            text-indent: 2em;
+            margin-bottom: 1em;
+            text-align: justify;
+        }
+
+        /* ==================== 页面设置 ==================== */
+        @page {
+            size: A4;
+            margin-top: 2cm;
+            margin-bottom: 2.5cm;
+            margin-left: 2cm;
+            margin-right: 4cm;
+            /* 为侧边栏预留空间 */
+
+            /* 页眉 */
+            @top-center {
+                content: element(pageHeader);
+                vertical-align: bottom;
+            }
+
+            /* 页脚 - 页码 */
+            @bottom-center {
+                content: "- " counter(page) " -";
+                font-size: 10pt;
+                color: #666;
+            }
+
+            /* 脚注区域 */
+            @footnote {
+                border-top: 1pt solid #ccc;
+                padding-top: 8pt;
+                margin-top: 10pt;
+            }
+        }
+
+        /* 首页无页眉 */
+        @page :first {
+            @top-center {
+                content: none;
+            }
+        }
+
+        /* ==================== Running Elements ==================== */
+
+        /* 页眉元素 */
+        .page-header {
+            position: running(pageHeader);
+            font-size: 10pt;
+            color: #666;
+            border-bottom: 0.5pt solid #ccc;
+            padding-bottom: 5pt;
+            text-align: center;
+        }
+
+        /* ==================== QR 容器池样式 ==================== */
+        /*
+         * CoreViewer 注入模式：
+         * - QR 容器不使用 position: running()
+         * - 容器使用 visibility:hidden + position:absolute 隐藏
+         * - 插件通过 CoreViewer 事件将 QR 码注入到每页侧边栏
+         *
+         * 注意：不能使用 display:none，Vivliostyle 会跳过这些元素！
+         */
+        #qr-container-pool {
+            position: absolute;
+            left: -99999px;
+            top: -99999px;
+            visibility: hidden;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+        }
+
+        /* QR 引用标记 - 在正文中显示 [1], [2] 等 */
+        .qr-ref-mark {
+            color: #1976d2;
+            font-size: 0.8em;
+            font-weight: bold;
+            vertical-align: super;
+        }
+
+        .qr-ref-mark[data-type="audio"] {
+            color: #ff9800;
+        }
+
+        /* QR 项样式（用于注入的侧边栏） */
+        /* 注意：外层 .qr-item-injected 已有卡片样式，这里不再添加 */
+        .qr-item {
+            text-align: center;
+        }
+
+        .qr-item img {
+            width: 1.8cm;
+            height: auto;
+            margin-bottom: 3pt;
+        }
+
+        .qr-item .qr-label {
+            font-size: 8pt;
+            font-weight: bold;
+            color: #1976d2;
+            margin-bottom: 2pt;
+        }
+
+        .qr-item .qr-hint {
+            font-size: 7pt;
+            color: #888;
+        }
+
+        /* ==================== 脚注样式 ==================== */
+
+        /* 脚注内容 - 使用 CSS Paged Media 的 float: footnote */
+        .footnote {
+            float: footnote;
+            font-size: 9pt;
+            color: #666;
+            line-height: 1.5;
+        }
+
+        /* 脚注计数器样式 */
+        ::footnote-call {
+            content: counter(footnote, decimal);
+            font-size: 0.8em;
+            vertical-align: super;
+            color: #1976d2;
+        }
+
+        ::footnote-marker {
+            content: counter(footnote, decimal) ". ";
+            font-weight: bold;
+            color: #1976d2;
+        }
+
+        /* ==================== 章节控制 ==================== */
+
+        .chapter {
+            page-break-before: always;
+        }
+
+        .chapter:first-of-type {
+            page-break-before: avoid;
+        }
+
+        /* 防止标题与内容分离 */
+        h1,
+        h2,
+        h3 {
+            page-break-after: avoid;
+        }
+
+        /* 防止段落内部分页 */
+        p {
+            orphans: 3;
+            widows: 3;
+        }
+
+        /* ==================== 其他样式 ==================== */
+
+        .highlight-box {
+            background-color: #e3f2fd;
+            border-left: 4pt solid #1976d2;
+            padding: 15pt;
+            margin: 15pt 0;
+            font-family: "KaiTi", "STKaiti", serif;
+        }
+
+        .highlight-box .box-title {
+            font-weight: bold;
+            color: #1976d2;
+            margin-bottom: 8pt;
+        }
+
+        code {
+            font-family: "Consolas", "Courier New", monospace;
+            background-color: #f5f5f5;
+            padding: 2pt 4pt;
+            border-radius: 3pt;
+            font-size: 0.9em;
+        }
+
+        /* ==================== 尾注样式 ==================== */
+
+        /* 尾注引用标记 */
+        .endnote-ref {
+            color: #e91e63;
+            font-size: 0.8em;
+            vertical-align: super;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        /* 尾注区域 */
+        .endnotes-section {
+            page-break-before: always;
+            margin-top: 30pt;
+        }
+
+        .endnotes-section h2 {
+            color: #e91e63;
+            border-left-color: #e91e63;
+            margin-bottom: 20pt;
+        }
+
+        .endnotes-list {
+            list-style: none;
+            padding-left: 0;
+            margin: 0;
+        }
+
+        .endnotes-list li {
+            margin-bottom: 12pt;
+            padding-left: 30pt;
+            position: relative;
+            line-height: 1.6;
+        }
+
+        .endnotes-list li::before {
+            content: attr(data-num);
+            position: absolute;
+            left: 0;
+            color: #e91e63;
+            font-weight: bold;
+        }
+
+        .endnote-title {
+            font-weight: bold;
+            color: #333;
+            margin-right: 5pt;
+        }
+
+        .endnote-content {
+            color: #555;
+        }
+
+        .endnote-source {
+            font-size: 0.9em;
+            color: #888;
+            font-style: italic;
+            margin-left: 10pt;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- 页眉元素（Running Element） -->
+    <div class="page-header">
+        CSS Paged Media 技术文档
+    </div>
+
+    <!--
+    QR 容器池：存放所有预处理生成的 QR 码
+    使用 visibility:hidden + position:absolute 隐藏（不能用 display:none）
+    插件会读取这些容器并注入到对应页面的侧边栏
+-->
+    <div id="qr-container-pool">
+        <!-- QR-1: CSS Paged Media 规范 -->
+        <div class="qr-container" data-qr-id="qr-1" data-type="video">
+            <div class="qr-item">
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect fill='%23e3f2fd' width='80' height='80' rx='4'/%3E%3Crect fill='%231976d2' x='10' y='10' width='15' height='15'/%3E%3Crect fill='%231976d2' x='30' y='10' width='10' height='10'/%3E%3Crect fill='%231976d2' x='55' y='10' width='15' height='15'/%3E%3Crect fill='%231976d2' x='10' y='30' width='10' height='10'/%3E%3Crect fill='%231976d2' x='35' y='35' width='10' height='10'/%3E%3Crect fill='%231976d2' x='60' y='30' width='10' height='10'/%3E%3Crect fill='%231976d2' x='10' y='55' width='15' height='15'/%3E%3Crect fill='%231976d2' x='30' y='55' width='10' height='15'/%3E%3Crect fill='%231976d2' x='55' y='55' width='15' height='15'/%3E%3Ctext x='40' y='78' text-anchor='middle' font-size='6' fill='%23666'%3ESPEC%3C/text%3E%3C/svg%3E"
+                    alt="规范" />
+                <div class="qr-label">[1] CSS Paged Media</div>
+                <div class="qr-hint">扫码了解更多</div>
+            </div>
+        </div>
+
+        <!-- QR-2: 脚注功能 -->
+        <div class="qr-container" data-qr-id="qr-2" data-type="video">
+            <div class="qr-item">
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect fill='%23e3f2fd' width='80' height='80' rx='4'/%3E%3Crect fill='%231976d2' x='10' y='10' width='15' height='15'/%3E%3Crect fill='%231976d2' x='30' y='10' width='10' height='10'/%3E%3Crect fill='%231976d2' x='55' y='10' width='15' height='15'/%3E%3Crect fill='%231976d2' x='10' y='30' width='10' height='10'/%3E%3Crect fill='%231976d2' x='35' y='35' width='10' height='10'/%3E%3Crect fill='%231976d2' x='60' y='30' width='10' height='10'/%3E%3Crect fill='%231976d2' x='10' y='55' width='15' height='15'/%3E%3Crect fill='%231976d2' x='30' y='55' width='10' height='15'/%3E%3Crect fill='%231976d2' x='55' y='55' width='15' height='15'/%3E%3Ctext x='40' y='78' text-anchor='middle' font-size='6' fill='%23666'%3EFOOTNOTE%3C/text%3E%3C/svg%3E"
+                    alt="脚注" />
+                <div class="qr-label">[2] 脚注功能</div>
+                <div class="qr-hint">脚注自动编号</div>
+            </div>
+        </div>
+
+        <!-- QR-3: 侧边栏示例 -->
+        <div class="qr-container" data-qr-id="qr-3" data-type="video">
+            <div class="qr-item">
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect fill='%23e3f2fd' width='80' height='80' rx='4'/%3E%3Crect fill='%231976d2' x='10' y='10' width='15' height='15'/%3E%3Crect fill='%231976d2' x='30' y='10' width='10' height='10'/%3E%3Crect fill='%231976d2' x='55' y='10' width='15' height='15'/%3E%3Crect fill='%231976d2' x='10' y='30' width='10' height='10'/%3E%3Crect fill='%231976d2' x='35' y='35' width='10' height='10'/%3E%3Crect fill='%231976d2' x='60' y='30' width='10' height='10'/%3E%3Crect fill='%231976d2' x='10' y='55' width='15' height='15'/%3E%3Crect fill='%231976d2' x='30' y='55' width='10' height='15'/%3E%3Crect fill='%231976d2' x='55' y='55' width='15' height='15'/%3E%3Ctext x='40' y='78' text-anchor='middle' font-size='6' fill='%23666'%3ESIDEBAR%3C/text%3E%3C/svg%3E"
+                    alt="侧边栏" />
+                <div class="qr-label">[3] 侧边栏示例</div>
+                <div class="qr-hint">动态侧边栏内容</div>
+            </div>
+        </div>
+
+        <!-- QR-4: 视频演示 -->
+        <div class="qr-container" data-qr-id="qr-4" data-type="video">
+            <div class="qr-item">
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect fill='%23e3f2fd' width='80' height='80' rx='4'/%3E%3Crect fill='%231976d2' x='10' y='10' width='15' height='15'/%3E%3Crect fill='%231976d2' x='30' y='10' width='10' height='10'/%3E%3Crect fill='%231976d2' x='55' y='10' width='15' height='15'/%3E%3Crect fill='%231976d2' x='10' y='30' width='10' height='10'/%3E%3Crect fill='%231976d2' x='35' y='35' width='10' height='10'/%3E%3Crect fill='%231976d2' x='60' y='30' width='10' height='10'/%3E%3Crect fill='%231976d2' x='10' y='55' width='15' height='15'/%3E%3Crect fill='%231976d2' x='30' y='55' width='10' height='15'/%3E%3Crect fill='%231976d2' x='55' y='55' width='15' height='15'/%3E%3Ctext x='40' y='78' text-anchor='middle' font-size='6' fill='%23666'%3EVIDEO%3C/text%3E%3C/svg%3E"
+                    alt="视频" />
+                <div class="qr-label">[4] 视频演示</div>
+                <div class="qr-hint">扫码观看</div>
+            </div>
+        </div>
+
+        <!-- QR-5: 音频资源 -->
+        <div class="qr-container" data-qr-id="qr-5" data-type="audio">
+            <div class="qr-item">
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect fill='%23fff3e0' width='80' height='80' rx='4'/%3E%3Crect fill='%23ff9800' x='10' y='10' width='15' height='15'/%3E%3Crect fill='%23ff9800' x='30' y='10' width='10' height='10'/%3E%3Crect fill='%23ff9800' x='55' y='10' width='15' height='15'/%3E%3Crect fill='%23ff9800' x='10' y='30' width='10' height='10'/%3E%3Crect fill='%23ff9800' x='35' y='35' width='10' height='10'/%3E%3Crect fill='%23ff9800' x='60' y='30' width='10' height='10'/%3E%3Crect fill='%23ff9800' x='10' y='55' width='15' height='15'/%3E%3Crect fill='%23ff9800' x='30' y='55' width='10' height='15'/%3E%3Crect fill='%23ff9800' x='55' y='55' width='15' height='15'/%3E%3Ctext x='40' y='78' text-anchor='middle' font-size='6' fill='%23666'%3EAUDIO%3C/text%3E%3C/svg%3E"
+                    alt="音频" />
+                <div class="qr-label">[5] 音频资源</div>
+                <div class="qr-hint">扫码收听</div>
+            </div>
+        </div>
+
+        <!-- QR-6: 下载资源 -->
+        <div class="qr-container" data-qr-id="qr-6" data-type="file">
+            <div class="qr-item">
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect fill='%23e8f5e9' width='80' height='80' rx='4'/%3E%3Crect fill='%234caf50' x='10' y='10' width='15' height='15'/%3E%3Crect fill='%234caf50' x='30' y='10' width='10' height='10'/%3E%3Crect fill='%234caf50' x='55' y='10' width='15' height='15'/%3E%3Crect fill='%234caf50' x='10' y='30' width='10' height='10'/%3E%3Crect fill='%234caf50' x='35' y='35' width='10' height='10'/%3E%3Crect fill='%234caf50' x='60' y='30' width='10' height='10'/%3E%3Crect fill='%234caf50' x='10' y='55' width='15' height='15'/%3E%3Crect fill='%234caf50' x='30' y='55' width='10' height='15'/%3E%3Crect fill='%234caf50' x='55' y='55' width='15' height='15'/%3E%3Ctext x='40' y='78' text-anchor='middle' font-size='6' fill='%23666'%3EFILE%3C/text%3E%3C/svg%3E"
+                    alt="文件" />
+                <div class="qr-label">[6] 下载资源</div>
+                <div class="qr-hint">扫码下载</div>
+            </div>
+        </div>
+
+        <!-- QR-7: 在线文档 -->
+        <div class="qr-container" data-qr-id="qr-7" data-type="doc">
+            <div class="qr-item">
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect fill='%23fce4ec' width='80' height='80' rx='4'/%3E%3Crect fill='%23e91e63' x='10' y='10' width='15' height='15'/%3E%3Crect fill='%23e91e63' x='30' y='10' width='10' height='10'/%3E%3Crect fill='%23e91e63' x='55' y='10' width='15' height='15'/%3E%3Crect fill='%23e91e63' x='10' y='30' width='10' height='10'/%3E%3Crect fill='%23e91e63' x='35' y='35' width='10' height='10'/%3E%3Crect fill='%23e91e63' x='60' y='30' width='10' height='10'/%3E%3Crect fill='%23e91e63' x='10' y='55' width='15' height='15'/%3E%3Crect fill='%23e91e63' x='30' y='55' width='10' height='15'/%3E%3Crect fill='%23e91e63' x='55' y='55' width='15' height='15'/%3E%3Ctext x='40' y='78' text-anchor='middle' font-size='6' fill='%23666'%3EDOC%3C/text%3E%3C/svg%3E"
+                    alt="文档" />
+                <div class="qr-label">[7] 在线文档</div>
+                <div class="qr-hint">扫码阅读</div>
+            </div>
+        </div>
+
+        <!-- QR-8: 源代码 -->
+        <div class="qr-container" data-qr-id="qr-8" data-type="code">
+            <div class="qr-item">
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect fill='%23e8eaf6' width='80' height='80' rx='4'/%3E%3Crect fill='%233f51b5' x='10' y='10' width='15' height='15'/%3E%3Crect fill='%233f51b5' x='30' y='10' width='10' height='10'/%3E%3Crect fill='%233f51b5' x='55' y='10' width='15' height='15'/%3E%3Crect fill='%233f51b5' x='10' y='30' width='10' height='10'/%3E%3Crect fill='%233f51b5' x='35' y='35' width='10' height='10'/%3E%3Crect fill='%233f51b5' x='60' y='30' width='10' height='10'/%3E%3Crect fill='%233f51b5' x='10' y='55' width='15' height='15'/%3E%3Crect fill='%233f51b5' x='30' y='55' width='10' height='15'/%3E%3Crect fill='%233f51b5' x='55' y='55' width='15' height='15'/%3E%3Ctext x='40' y='78' text-anchor='middle' font-size='6' fill='%23666'%3ECODE%3C/text%3E%3C/svg%3E"
+                    alt="代码" />
+                <div class="qr-label">[8] 源代码</div>
+                <div class="qr-hint">扫码获取</div>
+            </div>
+        </div>
+
+        <!-- QR-9: 在线演示 -->
+        <div class="qr-container" data-qr-id="qr-9" data-type="demo">
+            <div class="qr-item">
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect fill='%23fff8e1' width='80' height='80' rx='4'/%3E%3Crect fill='%23ffc107' x='10' y='10' width='15' height='15'/%3E%3Crect fill='%23ffc107' x='30' y='10' width='10' height='10'/%3E%3Crect fill='%23ffc107' x='55' y='10' width='15' height='15'/%3E%3Crect fill='%23ffc107' x='10' y='30' width='10' height='10'/%3E%3Crect fill='%23ffc107' x='35' y='35' width='10' height='10'/%3E%3Crect fill='%23ffc107' x='60' y='30' width='10' height='10'/%3E%3Crect fill='%23ffc107' x='10' y='55' width='15' height='15'/%3E%3Crect fill='%23ffc107' x='30' y='55' width='10' height='15'/%3E%3Crect fill='%23ffc107' x='55' y='55' width='15' height='15'/%3E%3Ctext x='40' y='78' text-anchor='middle' font-size='6' fill='%23666'%3EDEMO%3C/text%3E%3C/svg%3E"
+                    alt="演示" />
+                <div class="qr-label">[9] 在线演示</div>
+                <div class="qr-hint">扫码体验</div>
+            </div>
+        </div>
+
+        <!-- QR-10: 音频讲解 -->
+        <div class="qr-container" data-qr-id="qr-10" data-type="audio">
+            <div class="qr-item">
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect fill='%23fff3e0' width='80' height='80' rx='4'/%3E%3Crect fill='%23ff9800' x='10' y='10' width='15' height='15'/%3E%3Crect fill='%23ff9800' x='30' y='10' width='10' height='10'/%3E%3Crect fill='%23ff9800' x='55' y='10' width='15' height='15'/%3E%3Crect fill='%23ff9800' x='10' y='30' width='10' height='10'/%3E%3Crect fill='%23ff9800' x='35' y='35' width='10' height='10'/%3E%3Crect fill='%23ff9800' x='60' y='30' width='10' height='10'/%3E%3Crect fill='%23ff9800' x='10' y='55' width='15' height='15'/%3E%3Crect fill='%23ff9800' x='30' y='55' width='10' height='15'/%3E%3Crect fill='%23ff9800' x='55' y='55' width='15' height='15'/%3E%3Ctext x='40' y='78' text-anchor='middle' font-size='6' fill='%23666'%3EAUDIO%3C/text%3E%3C/svg%3E"
+                    alt="音频" />
+                <div class="qr-label">[10] 音频讲解</div>
+                <div class="qr-hint">扫码收听</div>
+            </div>
+        </div>
+
+        <!-- QR-11: 资源下载 -->
+        <div class="qr-container" data-qr-id="qr-11" data-type="file">
+            <div class="qr-item">
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect fill='%23e8f5e9' width='80' height='80' rx='4'/%3E%3Crect fill='%234caf50' x='10' y='10' width='15' height='15'/%3E%3Crect fill='%234caf50' x='30' y='10' width='10' height='10'/%3E%3Crect fill='%234caf50' x='55' y='10' width='15' height='15'/%3E%3Crect fill='%234caf50' x='10' y='30' width='10' height='10'/%3E%3Crect fill='%234caf50' x='35' y='35' width='10' height='10'/%3E%3Crect fill='%234caf50' x='60' y='30' width='10' height='10'/%3E%3Crect fill='%234caf50' x='10' y='55' width='15' height='15'/%3E%3Crect fill='%234caf50' x='30' y='55' width='10' height='15'/%3E%3Crect fill='%234caf50' x='55' y='55' width='15' height='15'/%3E%3Ctext x='40' y='78' text-anchor='middle' font-size='6' fill='%23666'%3EFILE%3C/text%3E%3C/svg%3E"
+                    alt="文件" />
+                <div class="qr-label">[11] 资源下载</div>
+                <div class="qr-hint">扫码下载</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 第一章 -->
+    <div class="chapter">
+        <h1>第一章 CSS Paged Media 简介</h1>
+
+        <p>
+            CSS Paged Media<span class="footnote">CSS Paged Media 是 W3C 制定的用于控制打印和分页媒体样式的 CSS 模块。</span>
+            是一组专门用于控制打印输出和分页文档样式的 CSS 属性和规则。
+            它允许开发者精确控制页面布局、页眉页脚、脚注等打印相关的样式。
+            扫描右侧二维码<sup class="qr-ref-mark" data-qr-id="qr-1">[1]</sup>了解更多规范详情。
+        </p>
+
+        <p>
+            主要特性包括：<code>@page</code> 规则用于定义页面属性，
+            <code>page-break</code> 属性控制分页，
+            以及各种边距盒（margin boxes）用于放置页眉、页脚等内容。
+        </p>
+
+        <h2>1.1 页面模型</h2>
+
+        <p>
+            在 CSS Paged Media 中，每个页面被划分为多个区域：
+            页面内容区域（page area）和边距区域（margin area）。
+            边距区域可以进一步划分为 16 个边距盒<span class="footnote">
+                边距盒包括：@top-left-corner, @top-left, @top-center, @top-right, @top-right-corner,
+                @left-top, @left-middle, @left-bottom, @right-top, @right-middle, @right-bottom,
+                @bottom-left-corner, @bottom-left, @bottom-center, @bottom-right, @bottom-right-corner。
+            </span>，用于放置页眉、页脚、侧边注释等内容。
+        </p>
+
+        <div class="highlight-box">
+            <div class="box-title">提示</div>
+            <p style="text-indent: 0; margin: 0;">
+                使用 <code>@page</code> 规则可以设置页面大小、边距和边距盒的内容。
+                例如：<code>@page { size: A4; margin: 2cm; }</code>
+            </p>
+        </div>
+
+        <h2>1.2 Running Elements</h2>
+
+        <p>
+            Running Elements<span class="footnote">Running Elements 允许将文档流中的元素"移动"到页面的边距区域显示。</span>
+            是 CSS Paged Media 中一个强大的特性。
+            通过 <code>position: running(name)</code> 可以将元素从文档流中移除，
+            然后在边距盒中通过 <code>content: element(name)</code> 引用显示。
+        </p>
+
+        <p>
+            这个特性常用于实现动态页眉（显示当前章节标题）、
+            侧边栏注释、以及本文档中演示的二维码显示功能。
+        </p>
+    </div>
+
+    <!-- 第二章 -->
+    <div class="chapter">
+        <h1>第二章 脚注实现</h1>
+
+        <p>
+            CSS Paged Media 提供了原生的脚注支持<span class="footnote">
+                使用 float: footnote 可以将内容移动到页面底部的脚注区域。
+            </span>。通过 <code>float: footnote</code> 属性，
+            可以将内容自动移动到页面底部的脚注区域。
+            查看脚注功能演示<sup class="qr-ref-mark" data-qr-id="qr-2">[2]</sup>。
+        </p>
+
+        <h2>2.1 脚注语法</h2>
+
+        <p>
+            脚注的实现非常简单<span class="footnote">
+                脚注内容会自动按照出现顺序编号，并在页面底部按顺序显示。
+            </span>，只需要为脚注内容添加 <code>float: footnote</code> 样式即可。
+            浏览器会自动处理脚注的编号和位置。
+        </p>
+
+        <div class="highlight-box">
+            <div class="box-title">代码示例</div>
+            <p style="text-indent: 0; margin: 0;">
+                <code>.footnote { float: footnote; }</code><br />
+                <code>::footnote-call { content: counter(footnote); }</code><br />
+                <code>::footnote-marker { content: counter(footnote) ". "; }</code>
+            </p>
+        </div>
+
+        <h2>2.2 脚注样式定制</h2>
+
+        <p>
+            脚注的样式可以通过多个伪元素<span class="footnote">
+                伪元素包括 ::footnote-call（脚注引用标记）和 ::footnote-marker（脚注内容前的标记）。
+            </span>进行定制。<code>::footnote-call</code> 控制正文中脚注引用的样式，
+            <code>::footnote-marker</code> 控制脚注内容前标记的样式。
+        </p>
+
+        <p>
+            此外，<code>@page</code> 规则中的 <code>@footnote</code> 区域规则
+            可以设置脚注区域的整体样式<span class="footnote">
+                @footnote 区域规则可以设置边框、内边距、外边距等属性。
+            </span>，如边框、内边距等。
+        </p>
+    </div>
+
+    <!-- 第三章 -->
+    <div class="chapter">
+        <h1>第三章 侧边栏实现</h1>
+
+        <p>
+            侧边栏是利用 CoreViewer 事件注入技术实现的<sup class="qr-ref-mark" data-qr-id="qr-3">[3]</sup>。
+            插件监听 Vivliostyle 的 <code>loaded</code> 和 <code>nav</code> 事件，
+            在页面渲染完成后将 QR 码注入到对应页面的侧边栏区域。
+        </p>
+
+        <h2>3.1 注入模式原理</h2>
+
+        <p>
+            与 CSS Running Elements 不同，注入模式直接操作 DOM。
+            插件会查找每页中的 QR 引用标记，然后从 QR 容器池中
+            找到对应的 QR 码内容，注入到该页的侧边栏中。
+        </p>
+
+        <div class="highlight-box">
+            <div class="box-title">注入模式的优势</div>
+            <p style="text-indent: 0; margin: 0;">
+                <code>每页独立</code> - 每页只显示该页引用的 QR 码<br />
+                <code>无需累积</code> - 不需要维护累积容器状态<br />
+                <code>空间高效</code> - 侧边栏空间利用更高效
+            </p>
+        </div>
+
+        <h2>3.2 实际应用</h2>
+
+        <p>
+            在本文档中，侧边栏用于显示相关的二维码和注释信息。
+            每个页面只显示该页面内容相关的二维码，
+            不会出现累积显示的问题。
+        </p>
+
+        <p>
+            以上就是 CSS Paged Media 中脚注和侧边栏的基本实现方法。
+            这些技术可以帮助我们创建专业的打印文档和 PDF 输出。
+        </p>
+    </div>
+
+    <!-- 第四章 - 多二维码演示 -->
+    <div class="chapter">
+        <h1>第四章 多二维码侧边栏</h1>
+
+        <p>
+            本章演示在同一页面中引用多个 QR 码的场景。
+            观看视频演示<sup class="qr-ref-mark" data-qr-id="qr-4">[4]</sup>，
+            收听音频讲解<sup class="qr-ref-mark" data-qr-id="qr-5" data-type="audio">[5]</sup>，
+            下载相关资源<sup class="qr-ref-mark" data-qr-id="qr-6">[6]</sup>。
+        </p>
+
+        <h2>4.1 CoreViewer 事件注入</h2>
+
+        <p>
+            与 CSS Running Elements 的累积容器模式不同，
+            CoreViewer 事件注入模式不需要在每个新容器中包含之前所有的 QR 码。
+            每个 QR 码独立定义，插件根据页面中的引用标记动态注入。
+        </p>
+
+        <div class="highlight-box">
+            <div class="box-title">CoreViewer 注入模式原理</div>
+            <p style="text-indent: 0; margin: 0;">
+                <strong>步骤1</strong>：插件监听 CoreViewer 的 loaded/nav 事件<br />
+                <strong>步骤2</strong>：扫描每页中的 .qr-ref-mark[data-qr-id] 标记<br />
+                <strong>步骤3</strong>：从 QR 容器池查找对应的 QR 码内容<br />
+                <strong>步骤4</strong>：创建侧边栏并注入该页相关的 QR 码
+            </p>
+        </div>
+
+        <p>填充内容...</p>
+        <p>填充内容...</p>
+        <p>填充内容...</p>
+
+        <h2>4.2 更多资源</h2>
+
+        <p>
+            查看在线文档<sup class="qr-ref-mark" data-qr-id="qr-7">[7]</sup>，
+            获取源代码<sup class="qr-ref-mark" data-qr-id="qr-8">[8]</sup>，
+            体验在线演示<sup class="qr-ref-mark" data-qr-id="qr-9">[9]</sup>。
+        </p>
+
+        <p>
+            这种方式的好处是：每页侧边栏只显示该页实际引用的 QR 码，
+            不会出现 CSS Running Elements 中 <code>element(..., last)</code>
+            只能获取最后一个元素的限制问题。
+        </p>
+    </div>
+
+    <!-- 第五章 - 尾注演示 -->
+    <div class="chapter">
+        <h1>第五章 尾注功能</h1>
+
+        <p>
+            尾注<sup class="endnote-ref"><a href="#en-1">[1]</a></sup>与脚注的主要区别在于显示位置。
+            脚注显示在当前页面底部，而尾注则集中显示在章节末尾或文档末尾。
+            收听音频讲解<sup class="qr-ref-mark" data-qr-id="qr-10" data-type="audio">[10]</sup>，
+            下载相关资源<sup class="qr-ref-mark" data-qr-id="qr-11">[11]</sup>。
+        </p>
+
+        <p>
+            尾注适合需要详细解释的内容<sup class="endnote-ref"><a href="#en-2">[2]</a></sup>，
+            避免打断读者的阅读流程。
+        </p>
+
+        <h2>5.1 尾注的应用场景</h2>
+
+        <p>
+            尾注常用于学术论文<sup class="endnote-ref"><a href="#en-3">[3]</a></sup>、
+            技术文档和书籍中。与脚注相比，尾注可以包含更长的解释内容，
+            因为不受页面空间限制。许多出版物采用尾注来提供参考文献<sup class="endnote-ref"><a href="#en-4">[4]</a></sup>
+            和补充说明。
+        </p>
+
+        <div class="highlight-box">
+            <div class="box-title">尾注与脚注的对比</div>
+            <p style="text-indent: 0; margin: 0;">
+                <strong>脚注 (Footnote)</strong>：使用 <code>float: footnote</code>，显示在页面底部<br />
+                <strong>尾注 (Endnote)</strong>：手动收集，显示在章节或文档末尾
+            </p>
+        </div>
+
+        <h2>5.2 实现方式</h2>
+
+        <p>
+            CSS Paged Media 没有原生的尾注支持<sup class="endnote-ref"><a href="#en-5">[5]</a></sup>，
+            需要通过 HTML 结构来实现。基本思路是：
+            在正文中放置尾注引用标记，然后在文档末尾创建尾注列表区域。
+        </p>
+
+        <p>
+            尾注引用通常使用方括号数字标记，如 [1]、[2]、[3] 等，
+            与脚注的圆圈数字 ①②③ 区分开来<sup class="endnote-ref"><a href="#en-6">[6]</a></sup>。
+            这种视觉区分有助于读者快速识别注释类型。
+        </p>
+    </div>
+
+    <!-- 尾注区域 -->
+    <div class="endnotes-section">
+        <h2>尾注</h2>
+
+        <ol class="endnotes-list">
+            <li id="en-1" data-num="[1]">
+                <span class="endnote-title">尾注 (Endnote)</span>
+                <span class="endnote-content">
+                    一种注释形式，将解释性内容集中放置在章节末尾或文档末尾，
+                    而不是像脚注那样放在页面底部。这种方式可以保持正文的连贯性。
+                </span>
+            </li>
+            <li id="en-2" data-num="[2]">
+                <span class="endnote-title">详细解释</span>
+                <span class="endnote-content">
+                    尾注特别适合需要大段解释的情况，例如对某个专业术语的深入说明、
+                    历史背景介绍、或者相关研究的详细讨论。
+                </span>
+            </li>
+            <li id="en-3" data-num="[3]">
+                <span class="endnote-title">学术论文</span>
+                <span class="endnote-content">
+                    在学术写作中，尾注常用于标注参考文献、引用来源和补充说明。
+                    许多学术期刊和出版社都要求使用尾注格式。
+                </span>
+                <span class="endnote-source">— Chicago Manual of Style</span>
+            </li>
+            <li id="en-4" data-num="[4]">
+                <span class="endnote-title">参考文献</span>
+                <span class="endnote-content">
+                    尾注可以包含完整的书目信息，包括作者、书名、出版社、年份等。
+                    这比脚注更适合放置详细的参考信息。
+                </span>
+            </li>
+            <li id="en-5" data-num="[5]">
+                <span class="endnote-title">CSS 尾注支持</span>
+                <span class="endnote-content">
+                    虽然 CSS Paged Media 提供了 <code>float: footnote</code> 用于脚注，
+                    但目前没有对应的 <code>float: endnote</code> 属性。
+                    尾注需要通过 HTML 结构和 CSS 样式手动实现。
+                </span>
+            </li>
+            <li id="en-6" data-num="[6]">
+                <span class="endnote-title">视觉区分</span>
+                <span class="endnote-content">
+                    通过使用不同的标记样式（脚注用圆圈数字，尾注用方括号数字），
+                    读者可以快速判断应该在页面底部还是文档末尾查找相应的注释内容。
+                </span>
+            </li>
+        </ol>
+    </div>
+
+    <!-- 加载 CoreViewer 事件版插件 -->
+    <script>
+        /**
+         * QR Sidebar Plugin (预处理版)
+         *
+         * 适用场景：HTML 文档已在外部完成预处理，媒体元素已替换为 QR 码结构
+         *
+         * 核心功能：
+         * 1. 支持 CSS Running Elements 模式（累积容器）的优化显示
+         * 2. 支持直接侧边栏注入模式（非 CSS running）
+         * 3. 响应 CoreViewer 的 loaded/nav 事件进行动态更新
+         *
+         * 预期的 HTML 结构（外部预处理生成）：
+         * - 媒体引用标记：<sup class="qr-ref-mark" data-qr-id="xxx">[1]</sup>
+         * - QR 码容器：<div class="side-note-resource" data-qr-id="xxx">...</div>
+         *
+         * 两种工作模式：
+         * A) CSS Running Mode：使用 position:running() 和 element()，插件优化显示
+         * B) Direct Inject Mode：插件直接将 QR 码注入页面侧边栏
+         */
+        (function () {
+            'use strict';
+
+            // ==================== 配置 ====================
+            const CONFIG = {
+                // 工作模式：'css-running' | 'direct-inject'
+                mode: 'auto', // auto = 自动检测
+
+                sidebar: {
+                    width: '2.5cm',
+                    position: 'right',
+                    paddingTop: '20px',
+                    backgroundColor: 'transparent'
+                },
+
+                // 选择器配置
+                selectors: {
+                    // QR 容器选择器（外部预处理生成的）
+                    qrContainer: '.side-note-resource, .qr-container, [data-qr-container]',
+                    // 引用标记选择器
+                    refMark: '.qr-ref-mark, [data-qr-ref]',
+                    // 页面容器选择器
+                    pageContainer: '[data-vivliostyle-page-container], .pagedjs_page, [class*="page-container"]'
+                },
+
+                colors: {
+                    video: '#1976d2',
+                    audio: '#ff9800'
+                },
+
+                debug: false
+            };
+
+            // 存储检测到的 QR 信息
+            const qrRegistry = new Map(); // qrId → { element, type, pageIndex }
+
+            function log(...args) {
+                if (CONFIG.debug) {
+                    console.log('[QR Plugin Preprocessed]', ...args);
+                }
+            }
+
+            // ==================== 初始化 ====================
+            function init(viewer, options = {}) {
+                Object.assign(CONFIG, options);
+                log('插件初始化（预处理版）');
+
+                // 绑定 CoreViewer 事件
+                attachCoreViewerListeners(viewer);
+
+                return {
+                    getConfig: () => ({ ...CONFIG }),
+                    setConfig: (newConfig) => Object.assign(CONFIG, newConfig),
+                    getQRRegistry: () => new Map(qrRegistry),
+                    reprocess: processPages,
+                    enableDebug: () => { CONFIG.debug = true; },
+                    disableDebug: () => { CONFIG.debug = false; }
+                };
+            }
+
+            // ==================== CoreViewer 事件绑定 ====================
+            function attachCoreViewerListeners(viewer) {
+                const coreViewer =
+                    viewer ||
+                    (typeof window !== 'undefined' && (window.coreViewer || window.top?.coreViewer));
+
+                if (!coreViewer || !coreViewer.addListener) {
+                    log('未获取到 coreViewer，使用回退机制');
+                    // 回退：直接处理
+                    setTimeout(processPages, 500);
+                    return false;
+                }
+
+                if (coreViewer.__qrPreprocessedBound) {
+                    log('coreViewer 事件已绑定，跳过重复绑定');
+                    return true;
+                }
+
+                const rebuild = (reason) => {
+                    log(`coreViewer 事件触发: ${reason}`);
+                    setTimeout(processPages, 0);
+                };
+
+                coreViewer.addListener('loaded', () => rebuild('loaded'));
+                coreViewer.addListener('nav', () => rebuild('nav'));
+                coreViewer.__qrPreprocessedBound = true;
+                log('已绑定 coreViewer loaded/nav 事件');
+                return true;
+            }
+
+            // ==================== 主处理逻辑 ====================
+            function processPages() {
+                log('开始处理页面...');
+
+                // 检测工作模式
+                const detectedMode = detectMode();
+                const mode = CONFIG.mode === 'auto' ? detectedMode : CONFIG.mode;
+                log(`工作模式: ${mode}`);
+
+                if (mode === 'css-running') {
+                    processCSSRunningMode();
+                } else {
+                    processDirectInjectMode();
+                }
+            }
+
+            // 检测应使用哪种模式
+            function detectMode() {
+                // 检查是否存在使用 position: running 的元素
+                const runningElements = document.querySelectorAll(CONFIG.selectors.qrContainer);
+                for (const el of runningElements) {
+                    const style = getComputedStyle(el);
+                    if (style.position === 'running' || el.style.position?.includes('running')) {
+                        return 'css-running';
+                    }
+                }
+                return 'direct-inject';
+            }
+
+            // ==================== CSS Running 模式 ====================
+            // 在这种模式下，QR 码已经通过 CSS running elements 显示在 margin box 中
+            // 插件的作用是优化显示（如处理累积容器）
+            function processCSSRunningMode() {
+                log('CSS Running 模式处理...');
+
+                const viewport = document.querySelector('[data-vivliostyle-viewer-viewport]');
+                const root = viewport || document;
+
+                const pageContainers = root.querySelectorAll(CONFIG.selectors.pageContainer);
+                if (pageContainers.length === 0) {
+                    log('未找到页面容器');
+                    return;
+                }
+
+                log(`找到 ${pageContainers.length} 个页面容器`);
+
+                // 在 CSS Running 模式下，主要工作是：
+                // 1. 分析每页包含的 QR 引用
+                // 2. 可选：隐藏不属于当前页的 QR 码（如果用户选择非累积显示）
+
+                pageContainers.forEach((pageContainer, pageIndex) => {
+                    analyzePageQRReferences(pageContainer, pageIndex);
+                });
+
+                log('CSS Running 模式处理完成');
+            }
+
+            // 分析页面中的 QR 引用
+            function analyzePageQRReferences(pageContainer, pageIndex) {
+                const refMarks = pageContainer.querySelectorAll(CONFIG.selectors.refMark);
+                const qrIds = [];
+
+                refMarks.forEach((mark) => {
+                    const qrId = mark.dataset.qrId || mark.getAttribute('data-qr-id');
+                    if (qrId) {
+                        qrIds.push(qrId);
+                        qrRegistry.set(qrId, {
+                            element: mark,
+                            pageIndex: pageIndex
+                        });
+                    }
+                });
+
+                log(`第 ${pageIndex + 1} 页包含 ${qrIds.length} 个 QR 引用: ${qrIds.join(', ')}`);
+            }
+
+            // ==================== Direct Inject 模式 ====================
+            // 在这种模式下，插件直接将 QR 码注入到页面侧边栏
+            function processDirectInjectMode() {
+                log('Direct Inject 模式处理...');
+
+                const viewport = document.querySelector('[data-vivliostyle-viewer-viewport]');
+                const root = viewport || document;
+
+                const pageContainers = root.querySelectorAll(CONFIG.selectors.pageContainer);
+                if (pageContainers.length === 0) {
+                    log('未找到页面容器，进入预览模式');
+                    processPreviewMode(root);
+                    return;
+                }
+
+                log(`找到 ${pageContainers.length} 个页面容器`);
+
+                // 收集所有预处理的 QR 容器
+                const allQRContainers = collectQRContainers(root);
+                log(`找到 ${allQRContainers.length} 个预处理的 QR 容器`);
+
+                // 为每个页面创建侧边栏
+                pageContainers.forEach((pageContainer, pageIndex) => {
+                    processPageDirectInject(pageContainer, pageIndex, allQRContainers);
+                });
+
+                log('Direct Inject 模式处理完成');
+            }
+
+            // 收集所有预处理的 QR 容器
+            function collectQRContainers(root) {
+                const containers = [];
+                const qrElements = root.querySelectorAll(CONFIG.selectors.qrContainer);
+
+                qrElements.forEach((el, index) => {
+                    const qrId = el.dataset.qrId || el.getAttribute('data-qr-id') || `qr-pre-${index}`;
+                    containers.push({
+                        qrId: qrId,
+                        element: el,
+                        html: el.innerHTML
+                    });
+                });
+
+                return containers;
+            }
+
+            // Direct Inject 模式下处理单个页面
+            function processPageDirectInject(pageContainer, pageIndex, allQRContainers) {
+                // 查找该页面中的引用标记
+                const refMarks = pageContainer.querySelectorAll(CONFIG.selectors.refMark);
+                const pageQRIds = new Set();
+
+                refMarks.forEach((mark) => {
+                    const qrId = mark.dataset.qrId || mark.getAttribute('data-qr-id');
+                    if (qrId) {
+                        pageQRIds.add(qrId);
+                    }
+                });
+
+                if (pageQRIds.size === 0) {
+                    log(`第 ${pageIndex + 1} 页无 QR 引用`);
+                    // 移除已存在的侧边栏
+                    const oldSidebar = pageContainer.querySelector('.qr-sidebar-injected');
+                    if (oldSidebar) oldSidebar.remove();
+                    return;
+                }
+
+                // 找到对应的 QR 容器
+                const pageQRContainers = allQRContainers.filter(c => pageQRIds.has(c.qrId));
+
+                if (pageQRContainers.length === 0) {
+                    log(`第 ${pageIndex + 1} 页找不到对应的 QR 容器`);
+                    return;
+                }
+
+                // 创建侧边栏
+                createInjectSidebar(pageContainer, pageQRContainers, pageIndex);
+            }
+
+            // 创建注入式侧边栏
+            function createInjectSidebar(pageContainer, qrContainers, pageIndex) {
+                let sidebar = pageContainer.querySelector('.qr-sidebar-injected');
+
+                if (!sidebar) {
+                    sidebar = document.createElement('div');
+                    sidebar.className = 'qr-sidebar-injected';
+                    applyStyles(sidebar, {
+                        position: 'absolute',
+                        [CONFIG.sidebar.position]: '0',
+                        top: '0',
+                        width: CONFIG.sidebar.width,
+                        height: '100%',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        paddingTop: CONFIG.sidebar.paddingTop,
+                        boxSizing: 'border-box',
+                        overflow: 'hidden',
+                        pointerEvents: 'none',
+                        backgroundColor: CONFIG.sidebar.backgroundColor,
+                        zIndex: '100'
+                    });
+
+                    // 确保页面容器是定位上下文
+                    if (getComputedStyle(pageContainer).position === 'static') {
+                        pageContainer.style.position = 'relative';
+                    }
+
+                    pageContainer.appendChild(sidebar);
+                }
+
+                // 填充 QR 内容
+                sidebar.innerHTML = qrContainers.map(c => `
+      <div class="qr-item-injected" style="
+        margin-bottom: 8px;
+        text-align: center;
+        padding: 5px;
+        background: rgba(255,255,255,0.9);
+        border-radius: 4px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      ">
+        ${c.html}
+      </div>
+    `).join('');
+
+                log(`第 ${pageIndex + 1} 页侧边栏已创建，包含 ${qrContainers.length} 个 QR 码`);
+            }
+
+            // ==================== 预览模式（无分页） ====================
+            function processPreviewMode(root) {
+                const qrContainers = collectQRContainers(root);
+                if (qrContainers.length === 0) {
+                    log('预览模式：无 QR 容器');
+                    return;
+                }
+
+                let sidebar = document.querySelector('.qr-sidebar-preview-preprocessed');
+                if (!sidebar) {
+                    sidebar = document.createElement('div');
+                    sidebar.className = 'qr-sidebar-preview-preprocessed';
+                    applyStyles(sidebar, {
+                        position: 'fixed',
+                        [CONFIG.sidebar.position]: '10px',
+                        top: '10px',
+                        width: CONFIG.sidebar.width,
+                        maxHeight: '90vh',
+                        overflowY: 'auto',
+                        backgroundColor: 'rgba(255,255,255,0.95)',
+                        borderRadius: '8px',
+                        boxShadow: '0 2px 10px rgba(0,0,0,0.15)',
+                        padding: '10px',
+                        zIndex: '9999'
+                    });
+                    document.body.appendChild(sidebar);
+                }
+
+                sidebar.innerHTML = `
+      <div style="
+        font-size: 10pt;
+        font-weight: bold;
+        color: #333;
+        margin-bottom: 10px;
+        text-align: center;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 8px;
+      ">
+        媒体资源 (${qrContainers.length})
+      </div>
+      ${qrContainers.map(c => `
+        <div style="
+          margin-bottom: 8px;
+          text-align: center;
+          padding: 5px;
+          background: rgba(255,255,255,0.9);
+          border-radius: 4px;
+        ">
+          ${c.html}
+        </div>
+      `).join('')}
+    `;
+
+                log(`预览模式侧边栏已创建，包含 ${qrContainers.length} 个 QR 码`);
+            }
+
+            // ==================== 工具函数 ====================
+            function applyStyles(element, styles) {
+                Object.assign(element.style, styles);
+            }
+
+            // ==================== 导出 API ====================
+            window.QRSidebarPluginPreprocessed = {
+                init: init,
+                process: processPages,
+                getConfig: () => ({ ...CONFIG }),
+                setConfig: (newConfig) => Object.assign(CONFIG, newConfig),
+                getQRRegistry: () => new Map(qrRegistry),
+                reprocess: processPages,
+                enableDebug: () => { CONFIG.debug = true; },
+                disableDebug: () => { CONFIG.debug = false; }
+            };
+
+            // ==================== 自动入口 ====================
+            if (typeof window !== 'undefined') {
+                window.addEventListener('DOMContentLoaded', () => {
+                    log('DOM 加载完成，尝试自动绑定');
+
+                    const attached = attachCoreViewerListeners();
+                    if (!attached) {
+                        log('coreViewer 不可用，使用延迟处理');
+                        setTimeout(processPages, 500);
+                    }
+                });
+            }
+
+        })();
+
+
+    </script>
+    <script>
+        // 启用调试模式
+        QRSidebarPluginPreprocessed.enableDebug();
+
+        // 配置插件为 Direct Inject 模式（使用 CoreViewer 事件注入）
+        QRSidebarPluginPreprocessed.setConfig({
+            mode: 'direct-inject', // 强制使用 Direct Inject 模式
+            sidebar: {
+                width: '2.8cm',
+                position: 'right',
+                paddingTop: '20px'
+            },
+            selectors: {
+                qrContainer: '.qr-container[data-qr-id]',
+                refMark: '.qr-ref-mark[data-qr-id]',
+                pageContainer: '[data-vivliostyle-page-container]'
+            }
+        });
+
+        // 监听加载完成
+        document.addEventListener('DOMContentLoaded', function () {
+            console.log('[Demo] DOM 加载完成');
+            console.log('[Demo] QR 容器数量:', document.querySelectorAll('.qr-container[data-qr-id]').length);
+            console.log('[Demo] QR 引用标记数量:', document.querySelectorAll('.qr-ref-mark[data-qr-id]').length);
+            console.log('[Demo] coreViewer:', typeof window.coreViewer, typeof window.top?.coreViewer);
+        });
+    </script>
+
+</body>
+
+</html>
